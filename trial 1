@@ -1,0 +1,86 @@
+import fitz  # PyMuPDF
+import re
+import os
+
+def extract_text_from_pdf(pdf_path):
+    """
+    Extracts text from a PDF file.
+    """
+    document = fitz.open(pdf_path)
+    text = ""
+    for page_num in range(len(document)):
+        page = document.load_page(page_num)
+        text += page.get_text()
+    return text
+
+def extract_key_facts(text):
+    """
+    Extracts key facts based on sections identified by keywords.
+    """
+    sections = ['BLUF', 'Detailed Discussion', 'Counter-Lawfare Approach']
+    facts = {section: "" for section in sections}
+
+    for section in sections:
+        pattern = rf'{section}.*?((?=\n[A-Z])|\Z)'
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            facts[section] = match.group(0).strip()
+
+    return facts
+
+def extract_citations(text):
+    """
+    Extracts citations from the text.
+    """
+    citation_pattern = r'https?://[^\s]+'
+    citations = re.findall(citation_pattern, text)
+    return list(set(citations))
+
+def organize_documents(documents):
+    """
+    Organizes documents based on common titles or themes.
+    """
+    organized = {}
+    for doc in documents:
+        title = doc.get('title')
+        if title not in organized:
+            organized[title] = []
+        organized[title].append(doc)
+    return organized
+
+def process_document(pdf_path):
+    """
+    Processes a single PDF document to extract key facts and citations.
+    """
+    text = extract_text_from_pdf(pdf_path)
+    key_facts = extract_key_facts(text)
+    citations = extract_citations(text)
+    return {
+        'title': os.path.basename(pdf_path).replace('.pdf', ''),
+        'key_facts': key_facts,
+        'citations': citations
+    }
+
+def main(directory):
+    documents = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".pdf"):
+            pdf_path = os.path.join(directory, filename)
+            document = process_document(pdf_path)
+            documents.append(document)
+    
+    organized_documents = organize_documents(documents)
+    for title, docs in organized_documents.items():
+        print(f"Title: {title}")
+        for doc in docs:
+            print("Key Facts:")
+            for section, facts in doc['key_facts'].items():
+                print(f"  {section}: {facts}")
+            print("Citations:")
+            for citation in doc['citations']:
+                print(f"  {citation}")
+            print("\n")
+
+if __name__ == "__main__":
+    # Replace 'your_directory' with the path to your directory containing PDF files
+    main('your_directory')
